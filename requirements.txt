@@ -1,0 +1,4 @@
+dash==2.16.1
+plotly==5.18.0
+dash-ag-grid==31.0.0
+pandas==2.2.2
