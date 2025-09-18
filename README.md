@@ -39,18 +39,3 @@ python app.py
 ```
 http://localhost:8050
 ```
-
-## Features
-
-- **Interactive Grid**: Sort, filter, and search through column metadata records
-- **Color-coded Sections**: Different background colors for comments, glossary tags, and other tags
-- **Export Functionality**: Export selected data as CSV
-- **Responsive Design**: Modern, clean interface
-- **Sample Data**: Pre-populated with example column metadata from multiple tables
-
-## Usage
-
-- Use the grid controls to sort and filter data by catalog, schema, table, or column
-- View detailed comments and tags for each database column
-- Use the "Refresh Data" button to reload the dataset
-- Use the "Export Selected" button to export filtered data
