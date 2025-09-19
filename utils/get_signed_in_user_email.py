@@ -1,6 +1,6 @@
 from databricks.sdk import WorkspaceClient
 
-def get_signed_in_user_email(profile="field-eng-aws"):
+def get_signed_in_user_email():
     """
     Get the current user's information from Databricks.
     
@@ -11,7 +11,7 @@ def get_signed_in_user_email(profile="field-eng-aws"):
         str: The current user's email/username
     """
     # Initialize the WorkspaceClient
-    w = WorkspaceClient(profile=profile)
+    w = WorkspaceClient()
     
     # Get details about the current user's identity
     current_user_details = w.current_user.me()

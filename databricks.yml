@@ -1,0 +1,23 @@
+bundle:
+  name: crowdsourced-metadata
+
+resources:
+  apps:
+    crowdsourced-metadata:
+      name: 'crowdsourced-metadata'
+      source_code_path: .
+      description: "Dash App for FEAllstars Crowdsourced Metadata"
+      # resources:
+      #   - name: "database"
+      #     description: "A database for app to be able to work with"
+      #     database:
+      #       database_name: "public"
+      #       instance_name: "fe-allstars-crowdsourced-metadata"
+      #       permission: "CAN_CONNECT_AND_CREATE"
+
+targets:
+  dev:
+    mode: development
+    default: true
+    workspace:
+      host: https://e2-demo-field-eng.cloud.databricks.com
