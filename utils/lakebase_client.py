@@ -14,7 +14,7 @@ class LakebaseClient:
         self.user = "david.hurley@databricks.com"
 
         # Get credentials from Databricks workspace
-        w = WorkspaceClient(profile="field-eng-aws")
+        w = WorkspaceClient()
         instance = w.database.get_database_instance(name=self.instance_name)
         cred = w.database.generate_database_credential(
             request_id=str(uuid.uuid4()),
