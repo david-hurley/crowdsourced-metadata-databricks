@@ -23,47 +23,23 @@ ENTITIES_QUERY = """
     -- Joins current system comments (t1) with proposed changes (t2)
     -- Calculates approval_status based on comment differences and approval state
     select 
-    t1.entity_type,
     t1.entity_path,
-    t1.governed_tag,
-    t1.governed_tag_value,
-    t1.comment as current_comment,
-    t2.comment as proposed_comment,
-    t2.glossary_tag,
-    t2.approved,
-    t2.reason_for_not_approved,
-    case 
-        when t2.approved is true then 'approved'
-        when t1.comment is distinct from t2.comment and t2.approved is null and t2.comment is not null then 'pending'
-        when t1.comment is distinct from t2.comment and t2.approved is false then 'rejected'
-        when t1.comment is not distinct from t2.comment or t2.comment is null and t2.approved is null then null
-        else null
-    end as approval_status
-    from "public"."david_hurley"."governed_entity_paths_and_comments_pg" as t1
-    left join "public"."david_hurley"."governed_entity_change_record" as t2
-    on t1.entity_path = t2.entity_path
-    WHERE governed_tag_value ILIKE '%{user_email}%'
-"""
-
-GLOSSARY_QUERY = """
-    -- Fetch glossary tags and their associated comments
-    -- Used to populate dropdown options and auto-fill comments
-    SELECT * FROM public.david_hurley.glossary_tags_and_comments_pg
+    t1.comment as proposed_comment,
+    t1.glossary_tag,
+    t1.approved,
+    t1.reason_for_not_approved
+    from "public"."david_hurley"."governed_entity_change_record" as t1
+    where t1.approved is not true
 """
 
 SAVE_QUERY = """
-    -- Save or update proposed changes to entity metadata
-    -- Uses UPSERT pattern to handle both new records and updates
-    -- Sets approved and reason_for_not_approved to NULL to reset review status for re-evaluation
-    INSERT INTO public.david_hurley.governed_entity_change_record
-    (entity_path, comment, glossary_tag, approved, reason_for_not_approved)
-    VALUES (%s, %s, %s, %s, %s)
-    ON CONFLICT (entity_path) 
-    DO UPDATE SET 
-        comment = EXCLUDED.comment,
-        glossary_tag = EXCLUDED.glossary_tag,
-        approved = EXCLUDED.approved,
-        reason_for_not_approved = EXCLUDED.reason_for_not_approved
+    -- Update existing records where entity_path matches
+    -- Only updates approved and reason_for_not_approved fields
+    UPDATE public.david_hurley.governed_entity_change_record
+    SET 
+        approved = %s,
+        reason_for_not_approved = %s
+    WHERE entity_path = %s
 
 """
 
@@ -72,17 +48,6 @@ app.index_string = get_app_css()
 app.layout = create_layout()
 
 # Helper functions
-def get_comment_from_glossary(glossary_data, tag):
-    """Get comment text for a given glossary tag."""
-    if not tag or not glossary_data or 'glossary' not in glossary_data:
-        return ""
-    
-    df_glossary = pd.DataFrame(glossary_data['glossary'])
-    matching_row = df_glossary[df_glossary['tag'] == tag]
-    
-    if not matching_row.empty and 'comment' in matching_row.columns:
-        return matching_row.iloc[0]['comment']
-    return f"Tagged with: {tag}"
 
 def is_row_editable(approval_status):
     """Check if a row can be edited based on approval status."""
@@ -122,6 +87,9 @@ def initialize_row_data(entities_data):
             row[GLOSSARY_TAG_COLUMN] = ""
         if SAVED_COLUMN not in row:
             row[SAVED_COLUMN] = SAVED_STATUS
+        # Ensure approved field is always a boolean (not null)
+        if "approved" not in row or row["approved"] is None:
+            row["approved"] = False
 
 @app.callback(
     Output("data-store", "data"),
@@ -136,12 +104,8 @@ def load_data(_):
     try:
         # Query entities data
         df_entities = client.query(ENTITIES_QUERY.format(user_email=signed_in_user_email))
-        # Query glossary data
-        df_glossary = client.query(GLOSSARY_QUERY)
-        
         return {
             "entities": df_entities.to_dict("records"),
-            "glossary": df_glossary.to_dict("records")
         }
     finally:
         client.close()
@@ -159,8 +123,7 @@ def update_grid(data, current_row_data):
 
     # Prepare data for column definitions
     df_tags_comments = pd.DataFrame(data["entities"])
-    df_glossary_tags = pd.DataFrame(data["glossary"])
-    column_defs = make_column_defs(df_tags_comments, df_glossary_tags)
+    column_defs = make_column_defs(df_tags_comments)
 
     # Get fresh entities data
     entities_data = data["entities"].copy()
@@ -195,11 +158,9 @@ def save_unsaved_rows(row_data):
                 client.execute(
                     SAVE_QUERY,
                     (
-                        row.get(ENTITY_PATH_COLUMN),
-                        comment_to_save,
-                        row.get(GLOSSARY_TAG_COLUMN, ""),
-                        None,  # Reset approved to null for fresh review
-                        None   # Reset reason_for_not_approved to null for fresh review
+                        row.get("approved"),  # Use the checkbox value
+                        row.get("reason_for_not_approved"),  # Use the comment value
+                        row.get(ENTITY_PATH_COLUMN)  # WHERE clause parameter
                     )
                 )
                 row[SAVED_COLUMN] = SAVED_STATUS
@@ -208,24 +169,6 @@ def save_unsaved_rows(row_data):
     
     return row_data
 
-def handle_glossary_tag_change(row_data, changed_cell, data_store):
-    """Handle glossary tag cell changes."""
-    row_idx = changed_cell.get('rowIndex', 0)
-    if changed_cell.get('colId') != GLOSSARY_TAG_COLUMN:
-        return row_data
-        
-    approval_status = row_data[row_idx].get('approval_status')
-    if not is_row_editable(approval_status):
-        return row_data  # Row is pending - changes ignored
-    
-    new_tag = changed_cell.get('value', '')
-    row_data[row_idx][SAVED_COLUMN] = UNSAVED_STATUS
-    
-    # Update proposed comment based on glossary tag
-    proposed_comment = get_comment_from_glossary(data_store, new_tag)
-    row_data[row_idx][PROPOSED_COMMENT_COLUMN] = proposed_comment
-    
-    return row_data
 
 @app.callback(
     Output("metadata-grid", "rowData", allow_duplicate=True),
@@ -246,7 +189,16 @@ def handle_updates(save_clicks, cell_changed, row_data, data_store):
     if trigger_id == "save-btn":
         return save_unsaved_rows(row_data)
     elif trigger_id == "metadata-grid" and cell_changed:
-        return handle_glossary_tag_change(row_data, cell_changed[0], data_store)
+        # Handle cell changes
+        changed_cell = cell_changed[0]
+        if changed_cell.get('colId') == 'approved':
+            # Just update the value, don't mark as unsaved
+            pass
+        elif changed_cell.get('colId') == 'reason_for_not_approved':
+            # Mark as unsaved when comment is changed
+            row_idx = changed_cell.get('rowIndex', 0)
+            if row_idx < len(row_data):
+                row_data[row_idx][SAVED_COLUMN] = UNSAVED_STATUS
 
     return row_data
 

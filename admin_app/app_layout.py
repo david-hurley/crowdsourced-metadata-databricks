@@ -32,19 +32,9 @@ def get_default_column_def():
         "sortable": True
     }
 
-def make_column_defs(df_tags_comments, df_glossary_tags):
+def make_column_defs(df_tags_comments):
     # Define the specific columns to show in the grid with responsive widths
     column_defs = [
-        {
-            "headerName": "Entity Type",
-            "field": "entity_type",
-            "editable": False,
-            "width": 80,
-            "minWidth": 80,
-            "maxWidth": 100,
-            "cellStyle": {"textAlign": "center"},
-            "wrapHeaderText": True
-        },
         {
             "headerName": "Entity Path",
             "field": "entity_path",
@@ -56,18 +46,6 @@ def make_column_defs(df_tags_comments, df_glossary_tags):
             "wrapHeaderText": True,
             "wrapText": True,
             "autoHeight": True
-        },
-        {
-            "headerName": "Current Comment",
-            "field": "current_comment",
-            "editable": False,
-            "width": 200,
-            "minWidth": 150,
-            "flex": 1,
-            "cellStyle": {"textAlign": "left", "whiteSpace": "normal", "wordWrap": "break-word"},
-            "wrapText": True,
-            "autoHeight": True,
-            "wrapHeaderText": True
         },
         {
             "headerName": "Proposed Comment",
@@ -84,52 +62,46 @@ def make_column_defs(df_tags_comments, df_glossary_tags):
         {
             "headerName": "Glossary Tag",
             "field": "glossary_tag",
-            "editable": {
-                "function": "params.data.approval_status !== 'pending'"
-            },
-            "cellEditor": "agSelectCellEditor",
-            "cellEditorParams": {
-                "values": df_glossary_tags['tag'].dropna().unique().tolist()
-            },
+            "editable": False,
             "width": 120,
             "minWidth": 100,
             "maxWidth": 150,
             "cellStyle": {"textAlign": "center"},
-            "wrapHeaderText": True
+            "wrapHeaderText": True,
+            "cellRenderer": "function(params) { return 'one'; }"
         },
         {
-            "headerName": "Review Status",
-            "field": "approval_status",
-            "editable": False,
+            "headerName": "Approved",
+            "field": "approved",
+            "editable": True,
             "width": 120,
             "minWidth": 100,
             "maxWidth": 140,
-            "cellStyle": {"textAlign": "center", "fontWeight": "bold"},
+            "cellStyle": {"textAlign": "center"},
             "wrapHeaderText": True,
-            "cellRenderer": "function(params) { return params.value ? `<span class='status-${params.value}'>${params.value}</span>` : ''; }"
+            "cellRenderer": "agCheckboxCellRenderer",
+            "cellEditor": "agCheckboxCellEditor",
+            "cellEditorParams": {
+                "checkbox": True
+            },
+            "valueFormatter": "function(params) { return params.value === true ? true : false; }"
         },
         {
-            "headerName": "Review Comment",
+            "headerName": "Comment",
             "field": "reason_for_not_approved",
-            "editable": False,
+            "editable": True,
             "width": 200,
             "minWidth": 150,
             "flex": 1,
             "cellStyle": {"textAlign": "left", "whiteSpace": "normal", "wordWrap": "break-word"},
             "wrapText": True,
             "autoHeight": True,
-            "wrapHeaderText": True
-        },
-        {
-            "headerName": "Sent for Review",
-            "field": "saved",
-            "editable": False,
-            "width": 100,
-            "minWidth": 80,
-            "maxWidth": 120,
-            "cellStyle": {"textAlign": "center", "fontWeight": "bold"},
-            "cellRenderer": "function(params) { return `<span class='${params.value === '❌' ? 'unsaved-status' : 'saved-status'}'>${params.value}</span>`; }",
-            "wrapHeaderText": True
+            "wrapHeaderText": True,
+            "cellEditor": "agLargeTextCellEditor",
+            "cellEditorParams": {
+                "maxLength": 1000,
+                "rows": 4
+            }
         }
     ]
     
@@ -144,8 +116,8 @@ def create_layout():
         html.Div([
             # Header section
             html.Div([
-                html.H1("User Portal: Crowdsourced Metadata - Databricks"),
-                html.P("Set Entity Comments with Governed Glossary Tags. Current and proposed comments sync once per day")
+                html.H1("Admin Portal: Crowdsourced Metadata - Databricks"),
+                html.P("Approve User Proposed Changes. Current and proposed comments sync once per day")
             ], className="header-section"),
 
             # Content section
