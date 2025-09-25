@@ -11,10 +11,11 @@ class LakebaseClient:
         # Hardcoded connection details
         self.instance_name = "fe-allstars-crowdsourced-metadata"
         self.dbname = "public"
-        self.user = "david.hurley@databricks.com"
 
         # Get credentials from Databricks workspace
-        w = WorkspaceClient(profile="field-eng-aws")
+        w = WorkspaceClient()
+        self.user = w.current_user.me()
+
         instance = w.database.get_database_instance(name=self.instance_name)
         cred = w.database.generate_database_credential(
             request_id=str(uuid.uuid4()),
